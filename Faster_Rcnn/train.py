@@ -48,7 +48,7 @@ def debug_draw_bbox(img , bbox , normalize = True ):
         else:
             p0 = np.int32([box[0]  , box[1] ])
             p1 = np.int32([box[2]  , box[3] ])
-        debug_img = cv2.rectangle(debug_img, p0 , p1 , (0,255,0) , 2 )
+        debug_img = cv2.rectangle(debug_img, tuple(p0) ,  tuple(p1)  , (0,255,0) , 2 )
     return debug_img
 
 # Define your custom collate_fn
@@ -106,6 +106,12 @@ class ZillowDataset(torch.utils.data.Dataset):
     def __len__(self):        
         return len(self.annos)
 
+
+def anno_to_list(anno_b):
+    anno_list =[]
+    for anno in anno_b:
+        anno_list.append({"boxes": anno["boxes"] , "labels" : anno['labels']})
+    return anno_list
 def loss_fn(output):
     losses = sum(loss for loss in output.values())
     return losses
@@ -136,7 +142,8 @@ def inf_fn(model , data_loader , vis_data , epoch , log_folder= ""):
     '''
     for data in tqdm(data_loader):
         img_b , anno_b = data
-        output = model(img_b , anno_b)
+        anno_b_list = anno_to_list(anno_b)        
+        output = model(img_b , anno_b_list)
         write_loss(output , 'test' , epoch * len(data_loader) + cnt)           
         cnt+=1
 
@@ -173,9 +180,9 @@ def train_fn(model,optimizer  , epoch , data_loader , log_folder=""):
     for data in tqdm(data_loader):
         model.train()
         img_b , anno_b = data
-        print("train anno" , anno_b)
-        
-        output = model(img_b , anno_b)
+        anno_b_list = anno_to_list(anno_b)        
+        output = model(img_b , anno_b_list)
+
         loss = loss_fn(output)
         optimizer.zero_grad()
         loss.backward()
@@ -216,22 +223,22 @@ if __name__ == '__main__':
     torch.multiprocessing.set_start_method('spawn')
     print("current on",os.getcwd())
     transform = T.Compose([
-        T.ToTensor(),  # convert PIL image to PyTorch tensor
         transforms.Resize((512, 1024)),
+        T.ToTensor(),  # convert PIL image to PyTorch tensor
         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize image
     ])
     transform_no_norm = T.Compose([
-        T.ToTensor(),  # convert PIL image to PyTorch tensor
         transforms.Resize((512, 1024)),    
+        T.ToTensor(),  # convert PIL image to PyTorch tensor
     ])
     transform_norm= transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
     dataset_train = ZillowDataset(transforms=transform , anno_path= '../anno/train_visiable_200_no_cross.json' )
     dataset_test = ZillowDataset(transforms=transform , anno_path= '../anno/test_visiable_20_no_cross.json' )
-    dataset_test_no_norm = ZillowDataset(transforms=transform_no_norm , anno_path= '../output/test_visiable_10_no_cross.json' )
-    data_loader_train = torch.utils.data.DataLoader(dataset_train, batch_size=10, shuffle=True, num_workers=NUMBER_WORKESRS  , collate_fn = collate_fn )
-    data_loader_test = torch.utils.data.DataLoader(dataset_test, batch_size=10, shuffle=False, num_workers=NUMBER_WORKESRS  , collate_fn = collate_fn )
-    data_loader_test_no_norm = torch.utils.data.DataLoader(dataset_test_no_norm, batch_size=10, shuffle=False, num_workers=0  , collate_fn = collate_fn )
+    dataset_test_no_norm = ZillowDataset(transforms=transform_no_norm , anno_path= '../anno/test_visiable_10_no_cross.json' )
+    data_loader_train = torch.utils.data.DataLoader(dataset_train, batch_size=5, shuffle=True, num_workers=NUMBER_WORKESRS  , collate_fn = collate_fn )
+    data_loader_test = torch.utils.data.DataLoader(dataset_test, batch_size=5, shuffle=False, num_workers=NUMBER_WORKESRS  , collate_fn = collate_fn )
+    data_loader_test_no_norm = torch.utils.data.DataLoader(dataset_test_no_norm, batch_size=5, shuffle=False, num_workers=0  , collate_fn = collate_fn )
 
     #=========================================
     #               Setting 
@@ -258,7 +265,7 @@ if __name__ == '__main__':
             inf_fn(model_2cls , data_loader_test , dataset_test_no_norm , eval_eppch , log_folder)
             eval_eppch+=1
         if(epoch % 5 ==0):
-            save_path = create_folder (os.path(os.getcwd(),"checkpoints" , RUN_NAME))
+            save_path = create_folder (os.path.join(os.getcwd(),"checkpoints" , RUN_NAME))
             save_path = os.path.join(save_path , f'ep{epoch}.pth')
             torch.save(model_2cls,save_path)
         #inf_fn(model_2cls , data_loader_test , dataset_test_no_norm , eval_eppch , log_folder)

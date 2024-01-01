@@ -42,6 +42,8 @@ def scale_img(img , scale):
 	new_w = w*scale
 
 	return  cv2.resize(img, ( int(new_w), int(new_h)), interpolation = cv2.INTER_AREA)
+
+'''
 from ignite.engine import *
 from ignite.metrics import PSNR ,SSIM
 from torchvision import transforms
@@ -61,7 +63,7 @@ def get_eval_matric(pred_img , gt_img):
 	return state.metrics['psnr'] , state.metrics['ssim']
 
 	pass
-
+'''
 
 #==========================================
 #          Image sequence to video

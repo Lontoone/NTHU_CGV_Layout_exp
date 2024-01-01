@@ -2,7 +2,7 @@ import torchvision
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 # Load a pre-trained model
-model_2cls = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
+model_2cls = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True , **{"box_nms":0.25})
 
 # Get the number of input features for the classifier
 in_features = model_2cls.roi_heads.box_predictor.cls_score.in_features

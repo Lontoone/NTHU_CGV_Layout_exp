@@ -84,8 +84,9 @@ class ZillowDataset(torch.utils.data.Dataset):
         if self.transforms is not None:
             img = self.transforms(img)
 
-        u = torch.as_tensor(self.annos[idx]['u'])
-        v = torch.as_tensor(self.annos[idx]['sticks_v'])
+        h,w = img.shape[-2:]
+        u = torch.as_tensor(self.annos[idx]['u']) * w
+        v = torch.as_tensor(self.annos[idx]['sticks_v']) *h
 
         target = {}
         bboxes = uv_to_xyxy(  u , v)        
@@ -150,17 +151,18 @@ def inf_fn(model , data_loader , vis_data , epoch , log_folder= ""):
     # visualize
     model.eval()        
     for i in tqdm(range(5)):
-        img , anno      = vis_data[i]                
+        img , anno      = vis_data[i]                        
         img_b_norm      = transform_norm(img).unsqueeze(0)
+        print("inf img shape" , img_b_norm.shape)
         
         output_b        = model(img_b_norm)
         
         for j , out in enumerate(output_b):
             box = out['boxes'].detach().cpu().numpy()                        
-            debug_img = debug_draw_bbox(img, box , normalize=True)
+            debug_img = debug_draw_bbox(img, box , normalize=False)
 
             gt_box = anno['boxes'].detach().cpu().numpy()                    
-            debug_img_gt =  debug_draw_bbox(img, gt_box , normalize=True)
+            debug_img_gt =  debug_draw_bbox(img, gt_box , normalize=False)
 
             fig, axs = plt.subplots(1, 2 ,  figsize=(20, 5))                                     
             # Plot the images
@@ -202,10 +204,12 @@ def train_fn(model,optimizer  , epoch , data_loader , log_folder=""):
             debug_cnt = 0
             for img , anno , out in zip(img_b , anno_b , output_b):        
                 pred_box = out['boxes'].detach().cpu().numpy()                        
-                debug_img = debug_draw_bbox(img, pred_box , normalize=True)
-
+                debug_img = debug_draw_bbox(img, pred_box , normalize=False)
+                
+                print("gt" , anno)
+                print("pred_box" , pred_box)
                 gt_bbox = anno['boxes']        
-                debug_img_gt = debug_draw_bbox(img, gt_bbox.detach().cpu().numpy())
+                debug_img_gt = debug_draw_bbox(img, gt_bbox.detach().cpu().numpy() ,normalize=False)
                 fig, axs = plt.subplots(1, 2 ,  figsize=(20, 5))                                     
                 # Plot the images
                 axs[0].imshow(debug_img)
@@ -222,6 +226,7 @@ def train_fn(model,optimizer  , epoch , data_loader , log_folder=""):
 if __name__ == '__main__':
     torch.multiprocessing.set_start_method('spawn')
     print("current on",os.getcwd())
+
     transform = T.Compose([
         transforms.Resize((512, 1024)),
         T.ToTensor(),  # convert PIL image to PyTorch tensor
@@ -232,20 +237,24 @@ if __name__ == '__main__':
         T.ToTensor(),  # convert PIL image to PyTorch tensor
     ])
     transform_norm= transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    transform_scale= transforms.Resize((512, 1024))
 
-    dataset_train = ZillowDataset(transforms=transform , anno_path= '../anno/train_visiable_200_no_cross.json' )
-    dataset_test = ZillowDataset(transforms=transform , anno_path= '../anno/test_visiable_20_no_cross.json' )
+    dataset_train = ZillowDataset(transforms=transform , anno_path= '../anno/train_visiable_20_no_cross.json' )
+    dataset_test = ZillowDataset(transforms=transform , anno_path= '../anno/test_visiable_10_no_cross.json' )
     dataset_test_no_norm = ZillowDataset(transforms=transform_no_norm , anno_path= '../anno/test_visiable_10_no_cross.json' )
-    data_loader_train = torch.utils.data.DataLoader(dataset_train, batch_size=5, shuffle=True, num_workers=NUMBER_WORKESRS  , collate_fn = collate_fn )
-    data_loader_test = torch.utils.data.DataLoader(dataset_test, batch_size=5, shuffle=False, num_workers=NUMBER_WORKESRS  , collate_fn = collate_fn )
-    data_loader_test_no_norm = torch.utils.data.DataLoader(dataset_test_no_norm, batch_size=5, shuffle=False, num_workers=0  , collate_fn = collate_fn )
+    data_loader_train = torch.utils.data.DataLoader(dataset_train, batch_size=4, shuffle=True, num_workers=NUMBER_WORKESRS  , collate_fn = collate_fn )
+    data_loader_test = torch.utils.data.DataLoader(dataset_test, batch_size=4, shuffle=False, num_workers=NUMBER_WORKESRS  , collate_fn = collate_fn )
+    data_loader_test_no_norm = torch.utils.data.DataLoader(dataset_test_no_norm, batch_size=2, shuffle=False, num_workers=0  , collate_fn = collate_fn )
 
     #=========================================
     #               Setting 
     #=========================================
     MAX_TRAIN_EPOCHES = 50
-    RUN_NAME = '___test200'
+    RUN_NAME = '___test20--final'
 
+    #pt_path = os.path.join(os.getcwd() , "checkpoints","train_all","ep5.pth")
+    #model_2cls = torch.load(pt_path)
+    #model_2cls.load_state_dict(torch.load(pt_path))    
     model_2cls = model_2cls.to('cuda')
     optimizer = optim.Adam(model_2cls.parameters(), lr=0.001)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
@@ -255,7 +264,9 @@ if __name__ == '__main__':
     eval_eppch = 0
     log_folder = create_folder( os.path.join(os.getcwd() , "output" , RUN_NAME) )
     print("============================= HI ===========================")
-    #print(next(iter(data_loader_train)))
+    '''
+    '''
+    
     for epoch in range(1,MAX_TRAIN_EPOCHES+1):
         print("epoch" , epoch)    
         train_fn(model_2cls , optimizer, train_eppch , data_loader_train , log_folder)
@@ -267,8 +278,10 @@ if __name__ == '__main__':
         if(epoch % 5 ==0):
             save_path = create_folder (os.path.join(os.getcwd(),"checkpoints" , RUN_NAME))
             save_path = os.path.join(save_path , f'ep{epoch}.pth')
-            torch.save(model_2cls,save_path)
-        #inf_fn(model_2cls , data_loader_test , dataset_test_no_norm , eval_eppch , log_folder)
+            #torch.save(model_2cls,save_path)
+            torch.save(model_2cls.state_dict() ,save_path)
+    #inf_fn(model_2cls , data_loader_test , dataset_test_no_norm , 99 , log_folder)
         #break
+    scheduler.step()
     '''
     '''

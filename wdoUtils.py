@@ -10,7 +10,7 @@ import numpy as np
 import cv2
 import os
 
-from sympy import Polygon
+#from sympy import Polygon
 '''
 persPX2panoPX(pano_maps, positions) is used to convert coordinates from perspective to pano
 '''

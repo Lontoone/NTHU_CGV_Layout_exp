@@ -153,7 +153,6 @@ def inf_fn(model , data_loader , vis_data , epoch , log_folder= ""):
     for i in tqdm(range(5)):
         img , anno      = vis_data[i]                        
         img_b_norm      = transform_norm(img).unsqueeze(0)
-        print("inf img shape" , img_b_norm.shape)
         
         output_b        = model(img_b_norm)
         
@@ -206,8 +205,6 @@ def train_fn(model,optimizer  , epoch , data_loader , log_folder=""):
                 pred_box = out['boxes'].detach().cpu().numpy()                        
                 debug_img = debug_draw_bbox(img, pred_box , normalize=False)
                 
-                print("gt" , anno)
-                print("pred_box" , pred_box)
                 gt_bbox = anno['boxes']        
                 debug_img_gt = debug_draw_bbox(img, gt_bbox.detach().cpu().numpy() ,normalize=False)
                 fig, axs = plt.subplots(1, 2 ,  figsize=(20, 5))                                     
@@ -239,25 +236,26 @@ if __name__ == '__main__':
     transform_norm= transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     transform_scale= transforms.Resize((512, 1024))
 
-    dataset_train = ZillowDataset(transforms=transform , anno_path= '../anno/train_visiable_all_no_cross.json' )
-    dataset_test = ZillowDataset(transforms=transform , anno_path= '../anno/test_visiable_all_no_cross.json' )
+    dataset_train = ZillowDataset(transforms=transform , anno_path= '../anno/train_visiable_10k_no_cross.json' )
+    dataset_test = ZillowDataset(transforms=transform , anno_path= '../anno/test_visiable_200_no_cross.json' )
     dataset_test_no_norm = ZillowDataset(transforms=transform_no_norm , anno_path= '../anno/test_visiable_20_no_cross.json' )
-    data_loader_train = torch.utils.data.DataLoader(dataset_train, batch_size=20, shuffle=True, num_workers=NUMBER_WORKESRS  , collate_fn = collate_fn , pin_memory=True )
-    data_loader_test = torch.utils.data.DataLoader(dataset_test, batch_size=20, shuffle=False, num_workers=NUMBER_WORKESRS  , collate_fn = collate_fn ,pin_memory=True)
+    data_loader_train = torch.utils.data.DataLoader(dataset_train, batch_size=8, shuffle=True, num_workers=NUMBER_WORKESRS  , collate_fn = collate_fn  )
+    data_loader_test = torch.utils.data.DataLoader(dataset_test, batch_size=8, shuffle=False, num_workers=NUMBER_WORKESRS  , collate_fn = collate_fn )
     data_loader_test_no_norm = torch.utils.data.DataLoader(dataset_test_no_norm, batch_size=2, shuffle=False, num_workers=0  , collate_fn = collate_fn )
 
     #=========================================
     #               Setting 
     #=========================================
     MAX_TRAIN_EPOCHES = 160
-    RUN_NAME = 'train_all_final'
+    RUN_NAME = 'train_10k_final-3-start_ep5'
+    
 
-    #pt_path = os.path.join(os.getcwd() , "checkpoints","___test20--final","ep50.pth")
+    pt_path = os.path.join(os.getcwd() , "checkpoints","train_10k_final-2","ep5.pth")
     #model_2cls = torch.load(pt_path)
-    #model_2cls.load_state_dict(torch.load(pt_path))    
+    model_2cls.load_state_dict(torch.load(pt_path))    
     model_2cls = model_2cls.to('cuda')
-    optimizer = optim.Adam(model_2cls.parameters(), lr=0.001)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+    optimizer = optim.Adam(model_2cls.parameters(), lr=0.0001)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
     writer = SummaryWriter(RUN_NAME)
 
     train_eppch = 0
@@ -281,6 +279,7 @@ if __name__ == '__main__':
             #torch.save(model_2cls,save_path)
             torch.save(model_2cls.state_dict() ,save_path)
         else:
+            save_path = create_folder (os.path.join(os.getcwd(),"checkpoints" , RUN_NAME))
             save_path = os.path.join(save_path , f'bk.pth')            
             torch.save(model_2cls.state_dict() ,save_path)
         #break

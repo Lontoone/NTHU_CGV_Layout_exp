@@ -4,3 +4,18 @@ ZILLOW_ZIND_JSON_PATH = '/CGVLAB3/datasets/chingjia/zind/zind/zind_partition.jso
 #ZILLOW_ZIND_JSON_PATH = 'F:/THU/DoorSeg/OneDrive_2023-01-07/Door_Detection/zind/zind/zind_partition.json'
 
 NUMBER_WORKESRS = 4
+
+
+
+#==============================================
+#				  Faster RCNN
+#==============================================
+
+#==============================================
+#				 Horizon Net
+#==============================================
+Horizon_MAX_PREDICTION = 90
+Horizon_C = 0.1
+Horizon_R = 10
+Horizon_CONFIDENCE_THRESHOLD = 0.05
+Horizon_AUG = False   # do augmentation

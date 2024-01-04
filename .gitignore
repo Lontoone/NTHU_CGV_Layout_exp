@@ -2,3 +2,4 @@ output*/
 __*
 events.out*
 checkpoints/
+*.pth

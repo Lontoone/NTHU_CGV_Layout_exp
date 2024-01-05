@@ -1,7 +1,18 @@
+import os
+abspath = os.path.abspath(__file__)
+dname = os.path.dirname(abspath)
+os.chdir(dname)
+
 import torch
-sys.path.append('../')
+import sys
+print(os.getcwd())
+sys.path.append('../../')
 from config import *
-import numpy
+import numpy as np
+import cv2
+import matplotlib.pyplot as plt
+from matplotlib import gridspec
+
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -9,8 +20,23 @@ def predict (data , net):
     imgs = data['image'].to(device)        
     out = net(imgs)    
     return out
-    
 
+def fig_to_img(fig):    
+    img = np.asarray(fig.canvas.buffer_rgba())
+    return img
+
+def save_model(net, path , epoch =0 , ap = 0):
+    state_dict = {
+        #'args': args.__dict__,
+        'kwargs': {
+            'backbone': net.backbone,
+            'use_rnn': net.use_rnn,
+        },
+        'state_dict': net.state_dict(),
+        'epoch':epoch,
+        'ap':ap
+    }
+    torch.save(state_dict, path)
 # 輸出 [b , 5 , max_door_count]
 #   Note: [b,0]為x座標，非原本的u_grad
 def filter_peak_data(predict , min_threshold=-1):
@@ -27,7 +53,6 @@ def filter_peak_data(predict , min_threshold=-1):
 
     peak_col_idx = torch.argmax(u,2)     
 
-    #print("peak_idx" , peak_col_idx)
     for i in range(b):
         _t = torch.arange(Horizon_MAX_PREDICTION).to(device)
         idx = _t * w + peak_col_idx[i]             
@@ -47,46 +72,115 @@ def filter_peak_data(predict , min_threshold=-1):
         
         pass    
     return result
+def visualize_2d(us, v_tops , v_btms, imgs, u_grad=None  , title =None , do_sig_u =False , polys = None ,  save_path=""):
+    out_imgs=[]    
+    length =  imgs.shape[0] if torch.is_tensor(imgs) else  len(imgs)        
 
+    for i in range(length):
+        if polys  is not None and u_grad is not None:            
+            img =visualize_2d_single(us[i] , v_tops[i] ,v_btms[i] , imgs[i] , u_grad[i] , title ,do_sig_u , polys[i]  , save_path= f"{save_path}/{title}_{i}.jpg")
+        elif u_grad is not None:            
+            img =visualize_2d_single(us[i] , v_tops[i] ,v_btms[i] , imgs[i] , u_grad[i] , title ,do_sig_u ,polys, save_path= f"{save_path}/{title}_{i}.jpg" )
+        else:
+            img = visualize_2d_single(us[i] , v_tops[i] ,v_btms[i] , imgs[i] , None , title , do_sig_u , polys, save_path= f"{save_path}/{title}_{i}.jpg")
+
+        out_imgs.append(img)
+    return out_imgs
+
+
+
+def visualize_2d_single(us, v_tops , v_btms, imgs, u_grad=None , title=None , do_sig_u =False , poly =None , save_path=""):
+    us = us.cpu().detach().numpy().flatten()
+    v_tops = v_tops.cpu().detach().numpy().flatten()
+    v_btms = v_btms.cpu().detach().numpy().flatten()
+    
+    uvs=[]
+    for u, v_t , v_b in zip( us , v_tops ,v_btms):                    
+        uvs.append( (u , v_t) )
+        uvs.append( (u , v_b) )        
+        
+    img = imgs.permute(1,2,0).cpu().detach().numpy()
+    img = np.ascontiguousarray(img)
+
+    if(poly is not None):        
+        for doors in poly:            
+            for part_door in doors:            
+                part_door = np.array(part_door)                
+                part_door = part_door.reshape((-1 , 2)) * np.tile(np.array([1024 , 512]) , (part_door.size//2 , 1) )
+                part_door = part_door.astype('int32')               
+                img =  cv2.polylines(img, [part_door], True, (0,255,0), 2)
+        pass
+    
+    h,w,c = img.shape
+    img_size = [w,h]
+    for point in uvs:
+        #p = np.float32(point) * img_size % img_size       # clamp to boarder     
+        p = np.float32(point) * img_size         
+        p = np.int32(p)
+        img = cv2.circle( img, tuple( (p[0] , p[1])), 5,(255,0,0) , thickness= -1)
+
+    # Preview Confidence map
+    if u_grad is not None:        
+        fig = plt.figure()
+        spec = gridspec.GridSpec(ncols=1, nrows=3,)
+        fig.tight_layout()        
+        if do_sig_u ==True:
+            u_grad = torch.sigmoid( u_grad)
+        dist_graph = u_grad.repeat((10,1)).cpu().detach().numpy()            
+            
+        ax0 = fig.add_subplot(spec[0])
+        ax0.imshow(dist_graph , cmap="gray" )
+        ax0.axis("off")        
+
+        ax0 = fig.add_subplot(spec[1:])
+        ax0.imshow(img , aspect='auto' )
+        ax0.axis("off")        
+        
+        if(title is not None):
+            fig.suptitle(title)
+        if save_path != "":
+            plt.savefig(save_path)
+            plt.close() 
+        '''
+        plt.show()
+        '''
+        return fig_to_img(fig)
+    else:
+        #plt.title(title)
+        #plt.imshow(img)
+        #plt.show()
+        return img
+    pass
+
+
+# encode for fasten training 
 def encode(packed_data):
-    _esp = 0.000001  # 避免有些門寬=0的爆炸 (真的會爆炸)
+    _esp = 0.000001  # avoid door width = 0 
     packed_data[:,1] = torch.log( 0.5 - packed_data[:,1])  #v_top
     packed_data[:,2] = torch.log( packed_data[:,2] - 0.5)  #v_btm
     packed_data[:,3] = torch.log( packed_data[:,3] + _esp )  #du
-    #packed_data[:,3] = torch.log( packed_data[:,3] )  #du
     packed_data[:,4] = torch.log( 0.5 - packed_data[:,4] + _esp)  #v_top2
     packed_data[:,5] = torch.log( packed_data[:,5] - 0.5 + _esp)  #v_btm2
 
     zeros = torch.zeros_like(packed_data)
     is_nan = torch.isnan(packed_data)
     packed_data = torch.where(is_nan , zeros , packed_data)    
-    #packed_data = torch.nan_to_num(packed_data)
+    
     return packed_data
     pass
 
-#from scipy.spatial import distance_matrix
-#def match_gt(gt_u , predict_u ):
 def match_gt(gt_data , predict_data):
     
     # Filter out zero
-    #zeros_mask = torch.zeros_like(gt_data[:,0,:])
-    #ones_mask = torch.ones_like(gt_data[:,0,:])
-    #print("gt_data[:,0,:]" , gt_data[:,0,:])
     nonZero_idx = torch.where(gt_data[:,0,:] != 0)[0]
     nonZero_idx = torch.unique(nonZero_idx ,return_counts=True)[1]
-    #print("nonZero_idx" , nonZero_idx)
     
     
     gt_u = gt_data[:,0,:]    
-    #print("filtered gt u " , gt_u )
     predict_u = predict_data[:,0,:]
 
 
-    #print("mt u",gt_u.shape)
-    #print("mt pu",predict_u.shape)
-    #b , n , _ , __ = predict_u.shape
     b , n   = predict_u.shape
-    #print(predict_u.shape)
 
     matched_gt_u = []
     matched_gt_vtop = []
@@ -102,10 +196,6 @@ def match_gt(gt_data , predict_data):
     matched_prd_dvtop = []
     matched_prd_dvbtm = []
     gt_idxs=[]
-    #print("gt_before sort" , gt_data)
-    #pos_idxs =[]
-    #neg_idxs =[]
-    #neg_pred_u = []
     u_interval = 1 / Horizon_MAX_PREDICTION    
     for i in range(b):
         #dist_mat = distance_matrix(gt_u[i] , predict_u[i] )
@@ -118,13 +208,11 @@ def match_gt(gt_data , predict_data):
         
         u_interval_idx = (sorted_gt_u / u_interval).type(torch.long)
         gt_idxs.append(u_interval_idx)
-        #print("u_interval_idx" , u_interval_idx)
 
         target = torch.zeros((6,Horizon_MAX_PREDICTION)).to(device)                                
         target[0] = gt_data[i,-1]   # u_grad
         target[0,u_interval_idx] = 1   # 分類問題
         target[1:,u_interval_idx] = gt_data[i,1:-1,:pos_count]
-        #target[1:,u_interval_idx] = gt_data[i,1:,:pos_count]
 
 
         matched_gt_u.append(target[0,:])
@@ -161,7 +249,7 @@ def get_grad_u(u ,_width = 1024):
     #dist = dist.tile((u.shape[0],1) )            
     dist = dist.repeat((u.shape[0],1) )            
     dist = torch.abs( dist.float() - u.reshape((-1,1))*width )        
-    c_dist = C ** dist              
+    c_dist = Horizon_C ** dist              
     
     #c_dist[:u_len//2] = torch.max(c_dist[ 0::2 ] , c_dist[ 1::2 ])
     
@@ -195,6 +283,7 @@ def u_interval_to_real_u(u_interval , threshold = 0.25):
         i+=1
     
     return u_interval , masks
+
 from scipy import ndimage
 def find_N_peaks(signal, r=29, min_v=0.05, N=None):
     max_v = ndimage.maximum_filter(signal, size=r, mode='wrap')    
@@ -213,13 +302,9 @@ def cal_loss(pred , gt , pk_idxs):
         
     gt_u = torch.cat( gt[0])    
     pred_u = torch.cat( pred[0])    
-    #print("gt vtop data " , gt[1])
-    #print("pred vtop data " , pred[1])
     
     #u_loss = F.binary_cross_entropy_with_logits( pred_u , gt_u)            
-    u_loss = bce( pred_u , gt_u)            
-    #print("u_loss pred u ",  pred_u)
-    #print("u_loss gt u ",  gt_u)
+    u_loss = bce( pred_u , gt_u)       
     
     #non_zero_idx = torch.where(gt_u > 0)[0]  
     non_zero_idx=[]
@@ -228,7 +313,6 @@ def cal_loss(pred , gt , pk_idxs):
         non_zero_idx.append(pk + i * Horizon_MAX_PREDICTION)
         i+=1
     non_zero_idx = torch.cat(non_zero_idx)
-    #print("cal loss idx" , non_zero_idx) 
 
     # other loss
     gt_vtop = torch.cat(gt[1])[non_zero_idx]    
@@ -239,8 +323,6 @@ def cal_loss(pred , gt , pk_idxs):
     pred_vbtm   = torch.cat(pred[2])[non_zero_idx]
     gt_vbtm     = torch.cat(gt[2])[non_zero_idx]
     v_btm_loss = l1_loss(pred_vbtm , gt_vbtm )
-    #print("gt_vbtm" ,gt_vbtm)
-    #print("pred_vbtm" ,pred_vbtm)
 
     pred_du = torch.cat(pred[3])[non_zero_idx]    
     gt_du = torch.cat(gt[3])[non_zero_idx]
@@ -259,10 +341,6 @@ def cal_loss(pred , gt , pk_idxs):
     losses = {"u_loss":u_loss *20, "v_top":v_top_loss , "v_btm":v_btm_loss ,"du":du_loss ,"d_top":d_top_loss ,"d_btm":d_btm_loss }    
     #losses = {"u_loss":u_loss }    
     
-    '''
-    '''
-    #print(losses)
-
     return losses
     '''
     [Debug]
@@ -311,12 +389,10 @@ def decode(bdata , u_thresh = 0.25 , get_raw_u = False ):
     dvt = bdata[4]
     dvb = bdata[5]        
     pk_idxs =[]
-    #masks=[]
-    #real_gt_u=[]
     for u_grad in u:
         #pk_idx = find_N_peaks(u_grad.cpu().detach().numpy() , r=r , min_v = u_thresh )[0]
         u_grad = torch.sigmoid (u_grad)    
-        pk_idx = find_N_peaks(u_grad.cpu().detach().numpy() , r= R , min_v = u_thresh )        
+        pk_idx = find_N_peaks(u_grad.cpu().detach().numpy() , r= Horizon_R , min_v = u_thresh )        
         pk_idxs.append(pk_idx[0])
      
     
@@ -393,12 +469,7 @@ def interplate_uv(u,v , count = 20):
         ys.append(y)
         zs.append(z)
 
-    # 插值
-    '''
-    intp_x  = np.linspace(np.min(xs) , np.max(xs) , num=count )
-    intp_y  = np.linspace(np.min(ys) , np.max(ys) , num=count )
-    intp_z  = np.linspace(np.min(zs) , np.max(zs), num=count )
-    '''
+   
     intp_x  = np.linspace(xs[0] , xs[1] , num=count )
     intp_y  = np.linspace(ys[0] , ys[1] , num=count )
     intp_z  = np.linspace(zs[0] , zs[1], num=count )
@@ -470,15 +541,6 @@ def to_distorted_box(u,vt,vb , image = None  ,seg_cnt = None):
 
             left_max = part_left[len(part_left)//2][0] 
             left_clip_idx = np.where(part_left.flatten()[::2] > left_max)[0]
-
-
-            '''
-            print("all_points" , all_points)
-            print("cross_idx" , cross_idx)
-            print("seg_count" , seg_count)
-            print("part_left" , part_left)
-            print("part_right" , part_right)
-            '''
 
             if (left_clip_idx.size > 0):
                 part_left[left_clip_idx,0]=left_max+0.0001
@@ -561,17 +623,23 @@ boxvb = [np.array([0.5649, 0.6636, 0.5813, 0.5593, 0.6373, 0.5829])]
 '''
 boxu , boxvt , boxvb = rearrange_decoded(boxu , boxvt, boxvb)
 gt_boxu , gt_boxvt , gt_boxvb = rearrange_decoded(gt_boxu , gt_boxvt, gt_boxvb)
-#gt = [(0.8 , 0.23) , (1.1 , 0.23)  , (1.1 , 0.8) , (0.8 , 0.75) ]  # todo: gt不會cross borader
 from shapely.validation import make_valid,explain_validity
+from shapely.geometry import Polygon
+
+#==============================================
+# Note :     Shapely will works most of the time, but it sometimes getting invaild shape errors.
+#            So we use pixel level IoU instead of Shapely.
+#==============================================
+
 def cal_poly_iou(poly_a , poly_b):
     
     if( len(poly_a) ==1 and len(poly_b) ==1): #比對的兩扇門都沒有跨畫面
         a_pg = Polygon(poly_a[0])
         b_pg = Polygon(poly_b[0])
         
-        a_pg.buffer(0.0001)
+        a_pg = a_pg.buffer(0)
         a_pg = a_pg.simplify(0.0001 ,preserve_topology=False)
-        b_pg.buffer(0.0001)
+        b_pg = b_pg.buffer(0)
         b_pg = b_pg.simplify(0.0001 , preserve_topology=False)
 
         poly_intersection   = a_pg.intersection(b_pg)
@@ -579,8 +647,7 @@ def cal_poly_iou(poly_a , poly_b):
         if( poly_union.area== 0):
             iou=0
         else :
-            iou                 = poly_intersection.area / poly_union.area
-        #print("iou" , iou)
+            iou                 = poly_intersection.area / poly_union.area        
         return iou
         pass
 
@@ -597,7 +664,7 @@ def cal_poly_iou(poly_a , poly_b):
 
             for j , b_points in enumerate( poly_b):
                 b_pg = Polygon(b_points)
-                b_pg.buffer(0.0001)
+                b_pg = b_pg.buffer(0)
                 b_pg = b_pg.simplify(0.001 , preserve_topology=False)
 
                 if(not b_pg.is_valid):
@@ -629,8 +696,7 @@ def get_iou_matrix_distored(gt , pred):
     return iou_matrix
 
 
-for batched_uvv in zip(boxu , boxvt , boxvb ):  #each image in batch
-    #print("batched_uvv" , batched_uvv)
+for batched_uvv in zip(boxu , boxvt , boxvb ):  #each image in batch    
     u = batched_uvv[0].reshape(-1,2)
     vt = batched_uvv[1].reshape(-1,2)
     vb = batched_uvv[2].reshape(-1,2)    
@@ -643,8 +709,20 @@ for batched_uvv in zip(boxu , boxvt , boxvb ):  #each image in batch
 
     gt_polys_point = to_distorted_box(u , vt , vb,seg_cnt=5)
     iou_matrix = get_iou_matrix_distored(gt_polys_point , polys_point)
-    print("final iou_matrix",iou_matrix)
+    
 
     
 
 
+def uv_to_distorted_box(u,vt,vb):
+    polys =[]
+    _boxu , _boxvt , _boxvb = rearrange_decoded(u, vt , vb)
+    for bu,bvt,bvb  in zip(_boxu , _boxvt , _boxvb ):    
+        _u = bu.reshape(-1,2)
+        _vt = bvt.reshape(-1,2)
+        _vb = bvb.reshape(-1,2)    
+
+        p =to_distorted_box(_u , _vt , _vb )
+        polys.append(p)
+        
+    return polys

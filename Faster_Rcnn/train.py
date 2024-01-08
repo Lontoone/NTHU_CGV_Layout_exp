@@ -35,7 +35,7 @@ def uv_to_xyxy(u,v ):
     result[:,3] = v[:,3]
     return result
 
-def debug_draw_bbox(img , bbox , normalize = True ):    
+def debug_draw_bbox(img , bbox , normalize = True , color = (0,255,0) ):    
     h,w = img.shape[-2:]
     debug_img = img.permute(1,2,0).detach().cpu().numpy()
     debug_img = np.ascontiguousarray(debug_img)
@@ -48,7 +48,7 @@ def debug_draw_bbox(img , bbox , normalize = True ):
         else:
             p0 = np.int32([box[0]  , box[1] ])
             p1 = np.int32([box[2]  , box[3] ])
-        debug_img = cv2.rectangle(debug_img, tuple(p0) ,  tuple(p1)  , (0,255,0) , 2 )
+        debug_img = cv2.rectangle(debug_img, tuple(p0) ,  tuple(p1)  , color  , 2 )
     return debug_img
 
 # Define your custom collate_fn
@@ -92,7 +92,8 @@ class ZillowDataset(torch.utils.data.Dataset):
         bboxes = uv_to_xyxy(  u , v)        
         target['boxes'] = bboxes.to(self.device)
         target['labels'] = torch.ones(len(self.annos[idx]['u'])).view(-1).to(torch.int64) .to(self.device)
-        
+        target['u'] = self.annos[idx]['u']
+        target['v'] = self.annos[idx]['sticks_v']
         # [Debug: ]
         '''
         for box in bboxes:

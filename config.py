@@ -9,6 +9,11 @@ NUMBER_WORKESRS = 4
 IMG_WIDTH = 1024
 IMG_HEIGHT = 512
 
+ZILLOW_TRAIN_ANNO_JSON_PATH = './anno/train_visiable_20_no_cross.json'
+ZILLOW_TEST_ANNO_JSON_PATH = './anno/test_visiable_10_no_cross.json'
+
+ZILLOW_TEST_COCO_JSON_PATH = '../anno/instances_test2017.json'
+ZILLOW_TRAIN_COCO_JSON_PATH = '../anno/instances_train2017.json'
 
 #==============================================
 #				  Faster RCNN

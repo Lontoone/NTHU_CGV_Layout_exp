@@ -1,6 +1,7 @@
 import os
 abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
+current_file = os.getcwd()
 os.chdir(dname)
 
 import torch
@@ -12,7 +13,7 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
-
+os.chdir(current_file)
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 

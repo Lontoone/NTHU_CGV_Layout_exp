@@ -1,5 +1,5 @@
 
-#ZILLOW_DATASET_FOLDER = '/CGVLAB3/datasets/chingjia/data/data'
+ZILLOW_DATASET_FOLDER = '/CGVLAB3/datasets/chingjia/data/data'
 ZILLOW_ZIND_JSON_PATH = '/CGVLAB3/datasets/chingjia/zind/zind/zind_partition.json'
 #ZILLOW_DATASET_FOLDER = 'F:/THU/DoorSeg/OneDrive_2023-01-07/Door_Detection/data/data'
 ZILLOW_DATASET_FOLDER = 'E:\One_Drive_nutc\OneDrive - 國立臺中科技大學\清華\Room Layout Estimation\Door Detection\data\data'

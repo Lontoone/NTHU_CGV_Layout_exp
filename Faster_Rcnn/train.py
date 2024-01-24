@@ -236,8 +236,8 @@ if __name__ == '__main__':
     transform_norm= transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     transform_scale= transforms.Resize((512, 1024))
 
-    dataset_train = ZillowDataset(transforms=transform , anno_path= '../anno/train_visiable_10k_no_cross.json' )
-    dataset_test = ZillowDataset(transforms=transform , anno_path= '../anno/test_visiable_200_no_cross.json' )
+    dataset_train = ZillowDataset(transforms=transform , anno_path= '../anno/train_visiable_all_no_cross.json' )
+    dataset_test = ZillowDataset(transforms=transform , anno_path= '../anno/test_visiable_all_no_cross.json' )
     dataset_test_no_norm = ZillowDataset(transforms=transform_no_norm , anno_path= '../anno/test_visiable_20_no_cross.json' )
     data_loader_train = torch.utils.data.DataLoader(dataset_train, batch_size=8, shuffle=True, num_workers=NUMBER_WORKESRS  , collate_fn = collate_fn  )
     data_loader_test = torch.utils.data.DataLoader(dataset_test, batch_size=8, shuffle=False, num_workers=NUMBER_WORKESRS  , collate_fn = collate_fn )
@@ -246,13 +246,14 @@ if __name__ == '__main__':
     #=========================================
     #               Setting 
     #=========================================
-    MAX_TRAIN_EPOCHES = 160
-    RUN_NAME = 'train_10k_final-3-start_ep5'
+    MAX_TRAIN_EPOCHES = 101
+    RUN_NAME = 'train_all_final-start50'  ## TODO: 晚點train
     
-
-    pt_path = os.path.join(os.getcwd() , "checkpoints","train_10k_final-2","ep5.pth")
+    # Load Model
+    pt_path = os.path.join(os.getcwd() , "checkpoints","train_all_final-start15","bk.pth")
     #model_2cls = torch.load(pt_path)
     model_2cls.load_state_dict(torch.load(pt_path))    
+
     model_2cls = model_2cls.to('cuda')
     optimizer = optim.Adam(model_2cls.parameters(), lr=0.0001)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)

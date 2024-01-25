@@ -56,10 +56,10 @@ def interplate_uv(u,v , count = 20):
 ---------------------------------------------
 |                                            |
 |c---s                                 0------|
-|     |                                 |        |
-|     |                                 |        |
-|     |                                 |        |
-|----_0                                 _n-----|
+|     |                                 |     |
+|     |                                 |     |
+|     |                                 |     |
+|----_0                                _n-----|
 ---------------------------------------------
 * c = cross_idx
 * s = segment_idx
@@ -113,11 +113,11 @@ def to_distorted_box(u,vt,vb , image = None , seg_count =30 , show_plt= True , r
             #right_mid_btm = [1 ,all_points[seg_count + cross_idx+1][1] ]
             right_mid_btm = [1 ,all_points[-1][1] ]
 
-            part_right = all_points[:cross_idx] +[right_mid_top] +[right_mid_btm]+ all_points[seg_count + (seg_count - cross_idx):]
+            part_right = all_points[:cross_idx] +[right_mid_top] +[right_mid_btm]+ all_points[seg_count + (seg_count - cross_idx)  :] 
             #part_left = all_points[cross_idx: seg_count + (seg_count - cross_idx)]             
             part_left = [left_start_top] + \
                 all_points[cross_idx: seg_count + (seg_count - cross_idx)] + [left_start_btm]
-            
+
             
             part_left = np.array(part_left)
             part_right = np.array(part_right)
@@ -126,8 +126,10 @@ def to_distorted_box(u,vt,vb , image = None , seg_count =30 , show_plt= True , r
 
             right_clip_idx = np.where(part_right.flatten()[::2]<right_min)[0]
 
+            '''
             if (right_clip_idx.size > 0):
                 part_right[right_clip_idx,0]=1
+            '''
 
 
             #polys = [part_left , part_right]
@@ -221,7 +223,9 @@ class PR_Eval_Helper():
         self.predict_result = predict_result
         self.gt = gt
         
-        self.gt_count+= len(gt)              
+        self.gt_count+= len(gt)   
+        best_iou = []
+        
             
         iou_matrix = self.get_iou_fn(gt,predict_result)                
         pred_count = len(self.predict_result)
@@ -235,19 +239,28 @@ class PR_Eval_Helper():
                 # 過濾掉同個gt box有多個符合的box，只保留最好的
                 mono_gt = np.zeros_like(iou_matrix)
                 mono_gt[[i for i in range(len(mono_gt))] , [each_gt_best_iou_idx]] = iou_matrix[[i for i in range(len(mono_gt))] , [each_gt_best_iou_idx]]
+                
+                mono_gt *= iou_thresh_mask  # 沒達到threshold的設為0
                 # 紀錄miou
                 if(i==0):
+                    #print("mono_gt iou" , mono_gt)
                     self.all_iou += np.sum(mono_gt)
 
-                mono_gt *= iou_thresh_mask  # 沒達到threshold的設為0
 
-                #找到單列最好的 (?)
+                #找到單列最好的 (Best iou for each GT)
+                # Find TP , FN
                 pred_filtered_mask = np.zeros(pred_count)                
                 for row_gt in mono_gt:
                     _max_idx = np.argmax(row_gt)
                     if( row_gt[_max_idx]>0 ):
-                        pred_filtered_mask[_max_idx]=1                                                                
-                
+                        pred_filtered_mask[_max_idx]=1          
+
+                    if(i==0):
+                        best_iou.append(row_gt[_max_idx].astype(float))
+
+                # Add False Positive
+                #ToDo....
+           
                 tp_list = np.where(pred_filtered_mask > 0 , 1 , 0 )   
                 fp_list = np.where(pred_filtered_mask ==0 , 1 , 0 )    
                 
@@ -257,6 +270,8 @@ class PR_Eval_Helper():
                 
             else:
                 batch_ap = 0
+
+        return best_iou
           
 
     
@@ -271,24 +286,24 @@ class PR_Eval_Helper():
         recall = np.insert(recall , 0 , 0)
         precision = np.insert(precision , 0 , 1)
 
-        print("gt_count" , gt_count)
+        #print("gt_count" , gt_count)
         #print("tp" , tp)
         #print("fp" , fp)
 
-        print("all_prediction" , all_prediction)
-        print("recall" , recall)
-        print("precision" , precision)
+        #print("all_prediction" , all_prediction)
+        #print("recall" , recall)
+        #print("precision" , precision)
 
         auc = metrics.auc(recall,precision)
         return precision , recall,auc
     
-    def get_all_pr(self):
+    def get_all_pr(self , show_plt = True):
         # combine each batch result and sort by scores
         # print("self.results_per_batch", self.results_per_batch)
         self.final_result_dict =  [{} for _ in self.iou_thresh]        
         for i , thresh in enumerate(self.iou_thresh):
             #print("len" , len(self.results_per_batch[i]['scores']))
-            if len(self.results_per_batch[i]['scores']) > 0 :            
+            if self.gt_count > 0 :            
                 all_tp = np.concatenate(self.results_per_batch[i]['tp'][:])
                 all_fp = np.concatenate(self.results_per_batch[i]['fp'][:])
 
@@ -297,8 +312,7 @@ class PR_Eval_Helper():
 
                 recall_rate = sum_tp / self.gt_count
                 precision_rate = sum_tp / (sum_tp + sum_fp)
-                
-            if len(self.results_per_batch[i]['scores']) >1 :                        
+                                  
                 precision , recall , auc = self.list_to_pr_auc(all_tp , all_fp , self.gt_count)
             else:
                 precision = []
@@ -317,11 +331,13 @@ class PR_Eval_Helper():
             )
             print(f"ap_{thresh}",auc)
         if self.writer is not None:
-            self.write_tensorboard()
+            self.write_tensorboard(show_plt= show_plt)
         
-        return precision,recall,auc
+        mIou =  self.all_iou/self.gt_count
+        #return precision,recall,auc
+        return mIou
     
-    def write_tensorboard(self, subName ="sub"):        
+    def write_tensorboard(self, subName ="sub"  , show_plt = True):        
         writer = self.writer
         for i , thresh in enumerate(self.iou_thresh):                     
             prcs = self.final_result_dict[i]["precision"] 
@@ -347,11 +363,11 @@ class PR_Eval_Helper():
             print("all_iou" , self.all_iou)
             print("mIOU" , self.all_iou/self.gt_count)
             
-            
-            plt.plot( recs ,prcs )   
-            plt.title(f"PR_curve-{thresh} ap : {self.final_result_dict[i]['ap']}")
-            plt.savefig(self.log_folder+f"/_PR_curve-{thresh}-{subName}-ep{self.ep}.jpg")
-            plt.show()
+            if(show_plt):
+                plt.plot( recs ,prcs )   
+                plt.title(f"PR_curve-{thresh} ap : {self.final_result_dict[i]['ap']}")
+                plt.savefig(self.log_folder+f"/_PR_curve-{thresh}-{subName}-ep{self.ep}.jpg")
+                plt.show()
             
             
         self.writer.close()

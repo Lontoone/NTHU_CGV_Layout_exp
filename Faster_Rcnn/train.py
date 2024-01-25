@@ -90,6 +90,7 @@ class ZillowDataset(torch.utils.data.Dataset):
 
         target = {}
         bboxes = uv_to_xyxy(  u , v)        
+        target['image_file'] =  self.annos[idx]['image'] 
         target['boxes'] = bboxes.to(self.device)
         target['labels'] = torch.ones(len(self.annos[idx]['u'])).view(-1).to(torch.int64) .to(self.device)
         target['u'] = self.annos[idx]['u']

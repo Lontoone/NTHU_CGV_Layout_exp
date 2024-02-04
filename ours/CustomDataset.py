@@ -45,7 +45,7 @@ def blank(img):
 
 class CustomDataset(Dataset):
     global debug_current_imgs_path
-    def __init__(self, annotations_file_path , img_size=[IMG_WIDTH, IMG_HEIGHT] , use_aug= True , padding_count = 90):
+    def __init__(self, annotations_file_path , img_size=[IMG_WIDTH, IMG_HEIGHT] , use_aug= True , padding_count = 90 , c= 0.1):
         # Open json file        
         json_path =  annotations_file_path
         f= open(json_path)
@@ -54,6 +54,7 @@ class CustomDataset(Dataset):
         self.anno = anno
         self.img_size = img_size
         self.padding_count = padding_count
+        self.c = c
 
 
         #do_jitter = np.random.rand() > 0.5 if Horizon_AUG else False        
@@ -125,7 +126,7 @@ class CustomDataset(Dataset):
             image = torch.roll(image , shift , 2 )            
             u = (u + shift_rand) % 1
         #============     Padding Data     ===========        
-        u_grad = get_grad_u(u.flatten()[::2].reshape((-1,1)) , _width=self.padding_count )        
+        u_grad = get_grad_u(u.flatten()[::2].reshape((-1,1)) , _width=self.padding_count , c = self.c)        
         u_grad = torch.max(u_grad,0)[0]  
 
         padding_count = (self.padding_count  - u.numel()//2)

@@ -243,14 +243,14 @@ def match_gt(gt_data , predict_data):
             gt_idxs
     
     pass
-def get_grad_u(u ,_width = 1024):    
+def get_grad_u(u ,_width = 1024 , c = Horizon_C):    
     u_len = u.shape[0]
     width = _width
     dist = torch.arange(0, width)
     #dist = dist.tile((u.shape[0],1) )            
     dist = dist.repeat((u.shape[0],1) )            
     dist = torch.abs( dist.float() - u.reshape((-1,1))*width )        
-    c_dist = Horizon_C ** dist              
+    c_dist = c ** dist              
     
     #c_dist[:u_len//2] = torch.max(c_dist[ 0::2 ] , c_dist[ 1::2 ])
     

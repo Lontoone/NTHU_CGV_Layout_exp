@@ -20,9 +20,10 @@ import numpy as np
 from scipy.spatial import distance
 
 import sys
-sys.path.append('../../')
+sys.path.append('../')
 print(os.getcwd())
 from config import *
+sys.path.append('../Horizon_and_SAM/Horizon/')
 from horizon_utlis import *
 
 IMG_SIZE =  np.array([IMG_WIDTH, IMG_HEIGHT]) # [w,h]
@@ -44,7 +45,7 @@ def blank(img):
 
 class CustomDataset(Dataset):
     global debug_current_imgs_path
-    def __init__(self, annotations_file_path , img_size=[IMG_WIDTH, IMG_HEIGHT] , use_aug= True):
+    def __init__(self, annotations_file_path , img_size=[IMG_WIDTH, IMG_HEIGHT] , use_aug= True , padding_count = 90):
         # Open json file        
         json_path =  annotations_file_path
         f= open(json_path)
@@ -52,6 +53,7 @@ class CustomDataset(Dataset):
         f.close()
         self.anno = anno
         self.img_size = img_size
+        self.padding_count = padding_count
 
 
         #do_jitter = np.random.rand() > 0.5 if Horizon_AUG else False        
@@ -60,15 +62,14 @@ class CustomDataset(Dataset):
         self.transform = transforms.Compose([    
             transforms.ToPILImage(),                    
             transforms.Resize((img_size[1], img_size[0])),            
-            transforms.ColorJitter((0.4 , 1) , (0.7,1) , (0.6,1) , (-0.5, 0.5)) if self.use_aug else blank,        
+            #transforms.ColorJitter((0.4 , 1) , (0.7,1) , (0.6,1) , (-0.5, 0.5)) if self.use_aug else blank,        
             transforms.ToTensor(),            
-            gauss_noise_tensor if self.use_aug else blank,
+            #gauss_noise_tensor if self.use_aug else blank,
         ])
 
 
     def __len__(self):
         return len(self.anno)
-    
     def get_bbox_count(self ):
         count =0
         for data in self.anno:            
@@ -124,17 +125,17 @@ class CustomDataset(Dataset):
             image = torch.roll(image , shift , 2 )            
             u = (u + shift_rand) % 1
         #============     Padding Data     ===========        
-        u_grad = get_grad_u(u.flatten()[::2].reshape((-1,1)) , _width=Horizon_MAX_PREDICTION)        
+        u_grad = get_grad_u(u.flatten()[::2].reshape((-1,1)) , _width=self.padding_count )        
         u_grad = torch.max(u_grad,0)[0]  
 
-        padding_count = (Horizon_MAX_PREDICTION - u.numel()//2)
+        padding_count = (self.padding_count  - u.numel()//2)
         padding_count = max(padding_count ,  0)        
         
-        padding_count = abs( Horizon_MAX_PREDICTION*2 - u.numel())
+        padding_count = abs( self.padding_count *2 - u.numel())
         u_pad = torch.cat(( u.reshape(-1) , torch.zeros((padding_count )) )  )                
-        du_pad = torch.cat(( du.reshape(-1) , torch.zeros((Horizon_MAX_PREDICTION - du.numel() )) )  )                        
+        du_pad = torch.cat(( du.reshape(-1) , torch.zeros((self.padding_count  - du.numel() )) )  )                        
         v= v.flatten()                
-        padding_count = abs( Horizon_MAX_PREDICTION *4 - v.numel() )
+        padding_count = abs( self.padding_count  *4 - v.numel() )
         v_top_pad = torch.cat(( v[::2] , torch.zeros((padding_count//2 )) )  )        
         v_btm_pad = torch.cat(( v[1::2] , torch.zeros((padding_count//2 )) )  )      
         
@@ -166,17 +167,19 @@ class CustomDataset(Dataset):
 
 if __name__=="__main__"    :
     
-    dataset = CustomDataset( f"../../anno/test_visiable_10_no_cross.json"  , use_aug= False )     
+    dataset = CustomDataset( f"../anno/test_visiable_10_no_cross.json"  , use_aug= False )     
     dataloader = DataLoader(dataset, 2 , shuffle=False, drop_last =True)
     
     data = next(iter(dataloader))     
-    visualize_2d(     
+    vis = visualize_2d(     
         data['u'],
         data['v_top'],
         data['v_btm'],
         data['image'],
         data['u_grad'],
     )
+    plt.imshow(vis[0])
+    plt.show()
 '''
     
     pack_gt = (data['u'] , data['v_top'] , data['v_btm'] , data['du'] , data['dv_top'] , data['dv_btm'] , data['u_grad']  )        

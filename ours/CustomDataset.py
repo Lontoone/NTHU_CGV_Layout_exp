@@ -80,6 +80,7 @@ class CustomDataset(Dataset):
     def __getitem__(self, idx):      
         img_path = os.path.join( ZILLOW_DATASET_FOLDER, self.anno[idx]['image'])
         image = cv2.imread(img_path)        
+        print("img_path",img_path)
 
         if(self.transform!=None):
             image= self.transform( image)

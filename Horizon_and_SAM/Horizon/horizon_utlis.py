@@ -91,12 +91,16 @@ def visualize_2d(us, v_tops , v_btms, imgs, u_grad=None  , title =None , do_sig_
 
 
 def visualize_2d_single(us, v_tops , v_btms, imgs, u_grad=None , title=None , do_sig_u =False , poly =None , save_path=""):
-    us = us.cpu().detach().numpy().flatten()
-    v_tops = v_tops.cpu().detach().numpy().flatten()
-    v_btms = v_btms.cpu().detach().numpy().flatten()
-    
+    if isinstance(us, torch.Tensor):
+        us = us.cpu().detach().numpy().flatten()
+        v_tops = v_tops.cpu().detach().numpy().flatten()
+        v_btms = v_btms.cpu().detach().numpy().flatten()
+    else:    
+        us=np.array([u.cpu().detach().numpy() for u in us]).flatten()
+        v_tops= np.array([u.cpu().detach().numpy().flatten() for u in v_tops]).flatten()
+        v_btms=np.array([u.cpu().detach().numpy().flatten() for u in v_btms]).flatten()
     uvs=[]
-    for u, v_t , v_b in zip( us , v_tops ,v_btms):                    
+    for u, v_t , v_b in zip( us , v_tops ,v_btms):   
         uvs.append( (u , v_t) )
         uvs.append( (u , v_b) )        
         
@@ -113,11 +117,11 @@ def visualize_2d_single(us, v_tops , v_btms, imgs, u_grad=None , title=None , do
         pass
     
     h,w,c = img.shape
-    img_size = [w,h]
+    img_size = [w,h]    
     for point in uvs:
         #p = np.float32(point) * img_size % img_size       # clamp to boarder     
         p = np.float32(point) * img_size         
-        p = np.int32(p)
+        p = np.int32(p)        
         img = cv2.circle( img, tuple( (p[0] , p[1])), 5,(255,0,0) , thickness= -1)
 
     # Preview Confidence map

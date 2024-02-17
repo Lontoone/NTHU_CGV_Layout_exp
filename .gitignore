@@ -2,6 +2,7 @@ output*/
 __*
 events.out*
 checkpoints/
+lightning_logs/
 *.pth
 
 

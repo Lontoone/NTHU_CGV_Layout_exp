@@ -571,8 +571,8 @@ class VerticalQueryTransformer(pl.LightningModule):
                                                                           decode_pred[:,4],decode_pred[:,5] )                    
                     vis_imgs = visualize_2d_single(pred_us , pred_tops , pred_btms , u_grad = F.sigmoid(cls_b).view(1 , -1 ) , imgs=  img[b_cnt] ,
                                                     title=f"Pred_row{row_idx}-\n u:{pred_us}" , save_path= save_path  )
-                    plt.imshow(vis_imgs)                    
-                    plt.show()
+                    #plt.imshow(vis_imgs)                    
+                    #plt.show()
 
             b_cnt+=1
         return total_loss

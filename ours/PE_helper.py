@@ -276,7 +276,6 @@ class PR_Eval_Helper():
                 
             else:
                 batch_ap = 0
-        print("best_iou" , best_iou)
         return best_iou
           
 
@@ -307,24 +306,18 @@ class PR_Eval_Helper():
         # print("self.results_per_batch", self.results_per_batch)
         self.final_result_dict =  [{} for _ in self.iou_thresh]        
         for i , thresh in enumerate(self.iou_thresh):
-            
-            if self.gt_count > 0 and len(self.results_per_batch[i]['tp'])>0 :            
+            #print("len" , len(self.results_per_batch[i]['scores']))
+            if self.gt_count > 0 :            
                 all_tp = np.concatenate(self.results_per_batch[i]['tp'][:])
                 all_fp = np.concatenate(self.results_per_batch[i]['fp'][:])
-                print("all_tp" , all_tp)
-                print("all_fp" , all_fp)
 
                 sum_tp = np.sum(all_tp)
                 sum_fp = np.sum(all_fp)
-                
 
                 recall_rate = sum_tp / self.gt_count
                 precision_rate = sum_tp / (sum_tp + sum_fp)
-
-                if(sum_tp ==0):
-                    precision = recall = auc =0
-                else:
-                    precision , recall , auc = self.list_to_pr_auc(all_tp , all_fp , self.gt_count)
+                                  
+                precision , recall , auc = self.list_to_pr_auc(all_tp , all_fp , self.gt_count)
             else:
                 precision = []
                 recall=[]
@@ -355,7 +348,6 @@ class PR_Eval_Helper():
             recs = self.final_result_dict[i]["recall"] 
             
             step = 0
-            '''
             for prc, rec in zip(prcs , recs ):
                 if(self.writer is not None):
                     
@@ -364,7 +356,6 @@ class PR_Eval_Helper():
                     logger.log  (f"Eval/AUC_{thresh}" ,{f"ep{self.ep}": prc})  # tensor board bug                                                    
                 
                 step+=1
-            '''
             logger.log(f"Eval/Precision_rate_{thresh}", self.final_result_dict[i]['precision_rate'])
             logger.log(f"Eval/Recall_rate_{thresh}" ,   self.final_result_dict[i]['recall_rate'] )
             logger.log(f"Eval/AUC_{thresh}" ,  self.final_result_dict[i]['ap']  )  # tensor board bug                                                    

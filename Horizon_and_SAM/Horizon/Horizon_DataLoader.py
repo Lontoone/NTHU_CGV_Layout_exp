@@ -62,9 +62,9 @@ class CustomDataset(Dataset):
         self.transform = transforms.Compose([    
             transforms.ToPILImage(),                    
             transforms.Resize((img_size[1], img_size[0])),            
-            transforms.ColorJitter((0.4 , 1) , (0.7,1) , (0.6,1) , (-0.5, 0.5)) if self.use_aug else blank,        
+            #transforms.ColorJitter((0.4 , 1) , (0.7,1) , (0.6,1) , (-0.5, 0.5)) if self.use_aug else blank,        
             transforms.ToTensor(),            
-            gauss_noise_tensor if self.use_aug else blank,
+            #gauss_noise_tensor if self.use_aug else blank,
         ])
 
 

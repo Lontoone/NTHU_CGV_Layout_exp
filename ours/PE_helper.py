@@ -276,7 +276,6 @@ class PR_Eval_Helper():
                 
             else:
                 batch_ap = 0
-
         return best_iou
           
 
@@ -357,7 +356,6 @@ class PR_Eval_Helper():
                     logger.log  (f"Eval/AUC_{thresh}" ,{f"ep{self.ep}": prc})  # tensor board bug                                                    
                 
                 step+=1
-
             logger.log(f"Eval/Precision_rate_{thresh}", self.final_result_dict[i]['precision_rate'])
             logger.log(f"Eval/Recall_rate_{thresh}" ,   self.final_result_dict[i]['recall_rate'] )
             logger.log(f"Eval/AUC_{thresh}" ,  self.final_result_dict[i]['ap']  )  # tensor board bug                                                    

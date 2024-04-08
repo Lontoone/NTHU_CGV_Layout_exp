@@ -78,7 +78,7 @@ class CustomDataset(Dataset):
         return count
 
     def __getitem__(self, idx):      
-        img_path = os.path.join( ZILLOW_DATASET_FOLDER, self.anno[idx]['image'])
+        img_path = os.path.join( ZILLOW_DATASET_FOLDER, self.anno[idx]['image'])        
         image = cv2.imread(img_path)        
 
         if(self.transform!=None):
@@ -153,6 +153,7 @@ class CustomDataset(Dataset):
         #             Wrap Data
         #====================================
         data['image'] = image        
+        data['image_path'] = self.anno[idx]['image']        
         data['u_grad'] = u_grad
         data['u'] = u_pad [::2]
         data['v_top'] = v_top_pad[::2]

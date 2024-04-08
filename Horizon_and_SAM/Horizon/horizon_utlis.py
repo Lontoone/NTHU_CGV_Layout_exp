@@ -131,7 +131,7 @@ def visualize_2d_single(us, v_tops , v_btms, imgs, u_grad=None , title=None , do
         fig.tight_layout()        
         if do_sig_u ==True:
             u_grad = torch.sigmoid( u_grad)
-        dist_graph = u_grad.repeat((10,1)).cpu().detach().numpy()            
+        dist_graph = u_grad.repeat((50,1)).cpu().detach().numpy()            
             
         ax0 = fig.add_subplot(spec[0])
         ax0.imshow(dist_graph , cmap="gray" )
@@ -487,7 +487,7 @@ def interplate_uv(u,v , count = 20):
         thetas.append(theta)
         phis.append(phi)
     return thetas , phis
-
+'''
 def to_distorted_box(u,vt,vb , image = None  ,seg_cnt = None):
 
     canvas = np.zeros((512,1024,3)) if image is None else image    
@@ -557,18 +557,9 @@ def to_distorted_box(u,vt,vb , image = None  ,seg_cnt = None):
             polys = [all_points]
 
         polys_per_img.append(polys)
-    '''
-    # [DEBUG--- Show Result]
-        for poly in polys:            
-            poly = np.array(poly)
-            poly = poly.reshape((-1 , 2)) * np.tile(np.array([1024 , 512]) , (poly.size//2 , 1) )
-            poly = poly.astype('int32')               
-            canvas =  cv2.polylines(canvas, [poly], True, (0,255,0), 2)
-
-    plt.imshow(canvas)
-    plt.show()
-    '''
+   
     return polys_per_img
+'''
 
 def rearng(x):    
     half_idx = len(x)//2
@@ -700,7 +691,7 @@ def get_iou_matrix_distored(gt , pred):
     
     return iou_matrix
 
-
+'''
 for batched_uvv in zip(boxu , boxvt , boxvb ):  #each image in batch    
     u = batched_uvv[0].reshape(-1,2)
     vt = batched_uvv[1].reshape(-1,2)
@@ -731,3 +722,4 @@ def uv_to_distorted_box(u,vt,vb):
         polys.append(p)
         
     return polys
+'''
